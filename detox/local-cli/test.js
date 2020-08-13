@@ -152,6 +152,7 @@ function prepareJestArgs({ cliConfig, runnerArgs, runnerConfig, platform }) {
         'useCustomLogger',
         'forceAdbInstall',
       ]),
+      DETOX_START_TIMESTAMP: Date.now(),
       readOnlyEmu: platform === 'android' ? hasMultipleWorkers(cliConfig) : undefined,
       reportSpecs: _.isUndefined(cliConfig.jestReportSpecs)
         ? !hasMultipleWorkers(cliConfig)
@@ -172,7 +173,7 @@ async function resetLockFile({ platform }) {
   }
 }
 
-function launchTestRunner({ argv, env, specs }) {
+function launchTestRunner({ argv, env, specs, rerunIndex }) {
   const { $0: command, ...restArgv } = argv;
   const fullCommand = [command, ...unparse(restArgv), ...specs].join(' ');
 
@@ -185,13 +186,12 @@ function launchTestRunner({ argv, env, specs }) {
 
   cp.execSync(fullCommand, {
     stdio: 'inherit',
-    env: {
+    env: _.omitBy({
       ...process.env,
       ...env,
-
-      DETOX_START_TIMESTAMP: Date.now(),
+      DETOX_RERUN_INDEX: rerunIndex,
       PATH,
-    }
+    }, _.isUndefined),
   });
 }
 
@@ -220,6 +220,7 @@ async function runTestRunnerWithRetries(forwardedArgs, retries) {
       }
 
       forwardedArgs.specs = lastFailedTests;
+      forwardedArgs.rerunIndex = 1 + (forwardedArgs.rerunIndex || 0);
       log.error('Test run has failed for the following specs:\n' + lastFailedTests.join('\n'));
     }
   } while (launchError && --runsLeft > 0);
